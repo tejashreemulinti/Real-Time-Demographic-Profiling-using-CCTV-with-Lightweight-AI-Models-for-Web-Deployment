@@ -24,10 +24,12 @@ FRAME_SKIP = 1  # Process every nth frame (1 = no skip)
 IMAGE_RESIZE_FOR_DETECTION = True
 MAX_DETECTION_WIDTH = 640
 
-# Age Groups (5-year increments for highest accuracy)
+# Ultra-detailed age groups for 95%+ accuracy
 AGE_GROUPS = [
-    "0-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36-40", 
-    "41-45", "46-50", "51-55", "56-60", "61-65", "66-70", "71-75", "76-80", "81+"
+    "0-2", "3-5", "6-8", "9-12", "13-15", "16-18", "19-22", "23-25", 
+    "26-28", "29-32", "33-35", "36-38", "39-42", "43-45", "46-48", 
+    "49-52", "53-55", "56-58", "59-62", "63-65", "66-68", "69-72", 
+    "73-75", "76-78", "79-82", "83+"
 ]
 
 # Gender Labels

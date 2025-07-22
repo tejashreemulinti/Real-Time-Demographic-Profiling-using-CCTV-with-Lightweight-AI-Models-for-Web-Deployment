@@ -102,7 +102,8 @@ class FaceTracker:
             # Add to result with consistent ID
             tracked_face = face.copy()
             tracked_face['id'] = face_id
-            tracked_face['is_new'] = face_id not in used_track_ids or not self.tracked_faces[face_id].get('demographics_updated', False)
+            # Only mark as new if this face hasn't been processed for demographics yet
+            tracked_face['is_new'] = not self.tracked_faces[face_id].get('demographics_updated', False)
             tracked_faces_list.append(tracked_face)
         
         # Remove inactive faces
