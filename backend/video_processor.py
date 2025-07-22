@@ -5,12 +5,49 @@ import threading
 from typing import Dict, List, Optional, Callable
 import logging
 from collections import deque
+import sys
+import os
 
-from .face_detector import LightweightFaceDetector
+# Add parent directory to path for config import
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config
+
+try:
+    from .face_detector import LightweightFaceDetector
+except ImportError:
+    from .simple_face_detector import SimpleFaceDetector as LightweightFaceDetector
 from .age_gender_estimator import LightweightAgeGenderEstimator, SimpleDemographicPredictor
 from .improved_age_gender_estimator import ImprovedAgeGenderEstimator, FastDemographicPredictor
 from .ultra_accurate_age_gender_estimator import UltraAccurateAgeGenderEstimator
-from .face_tracker import FaceTracker, OptimizedFaceDetector
+try:
+    from .face_tracker import FaceTracker, OptimizedFaceDetector
+except ImportError:
+    # Simple fallback tracker
+    class FaceTracker:
+        def __init__(self, *args, **kwargs):
+            self.face_count = 0
+            self.demographics = {}
+        def update_tracks(self, faces):
+            for i, face in enumerate(faces):
+                face['id'] = i + 1
+                face['is_new'] = True
+            return faces
+        def update_face_demographics(self, face_id, demographics):
+            self.demographics[face_id] = demographics
+            return True
+        def get_unique_face_count(self): return len(self.demographics)
+        def get_active_face_count(self): return len(self.demographics)
+        def get_demographics_summary(self): 
+            return {'faces_by_gender': {'Male': 0, 'Female': 0, 'Unknown': 0}, 
+                   'faces_by_age': {age: 0 for age in config.AGE_GROUPS}}
+        def reset(self): 
+            self.demographics.clear()
+    
+    class OptimizedFaceDetector:
+        def __init__(self, base_detector, *args, **kwargs):
+            self.base_detector = base_detector
+        def detect_faces(self, image):
+            return self.base_detector.detect_faces(image)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

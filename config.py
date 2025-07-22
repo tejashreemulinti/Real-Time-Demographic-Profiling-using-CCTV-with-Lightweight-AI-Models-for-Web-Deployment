@@ -70,7 +70,8 @@ LOG_LEVEL = "INFO"
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 # Camera Settings
-CAMERA_INDEX = 0
+CAMERA_INDEX = "test_video.avi"  # Use test video file instead of camera
+# CAMERA_INDEX = 0  # Uncomment when real camera is available
 CAMERA_BUFFER_SIZE = 1  # Reduce buffer to minimize latency
 
 # Quality vs Speed Trade-offs
