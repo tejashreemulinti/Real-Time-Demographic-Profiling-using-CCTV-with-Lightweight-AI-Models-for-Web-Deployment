@@ -8,9 +8,29 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 import threading
 import pickle
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
-import dlib
+
+# Optional imports with fallbacks
+try:
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.preprocessing import StandardScaler
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+    logger.warning("scikit-learn not available. Ensemble models disabled.")
+
+try:
+    import dlib
+    DLIB_AVAILABLE = True
+except ImportError:
+    DLIB_AVAILABLE = False
+    logger.warning("dlib not available. Facial landmark detection disabled.")
+
+try:
+    from skimage import feature
+    SKIMAGE_AVAILABLE = True
+except ImportError:
+    SKIMAGE_AVAILABLE = False
+    logger.warning("scikit-image not available. Using simplified LBP.")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -44,7 +64,7 @@ class UltraAccurateAgeGenderEstimator:
         self.facial_feature_detector = None
         self.age_rf_model = None
         self.gender_rf_model = None
-        self.feature_scaler = StandardScaler()
+        self.feature_scaler = StandardScaler() if SKLEARN_AVAILABLE else None
         
         # Performance optimization
         self.batch_size = 2  # Smaller batch for accuracy
@@ -69,15 +89,18 @@ class UltraAccurateAgeGenderEstimator:
                 self._create_ultra_accurate_models()
             
             # Load facial landmark detector for feature extraction
-            try:
-                predictor_path = os.path.join(self.model_path, "shape_predictor_68_face_landmarks.dat")
-                if os.path.exists(predictor_path):
-                    self.facial_feature_detector = dlib.shape_predictor(predictor_path)
-                    logger.info("Facial landmark detector loaded successfully")
-                else:
-                    logger.warning("Facial landmark detector not found. Using basic features.")
-            except:
-                logger.warning("dlib not available. Using CNN features only.")
+            if DLIB_AVAILABLE:
+                try:
+                    predictor_path = os.path.join(self.model_path, "shape_predictor_68_face_landmarks.dat")
+                    if os.path.exists(predictor_path):
+                        self.facial_feature_detector = dlib.shape_predictor(predictor_path)
+                        logger.info("Facial landmark detector loaded successfully")
+                    else:
+                        logger.info("Facial landmark detector file not found. Using basic features.")
+                except Exception as e:
+                    logger.warning(f"Failed to load dlib predictor: {e}")
+            else:
+                logger.info("dlib not available. Using CNN features only.")
             
             # Load ensemble models
             self._load_ensemble_models()
@@ -204,6 +227,10 @@ class UltraAccurateAgeGenderEstimator:
     
     def _load_ensemble_models(self):
         """Load ensemble models for improved accuracy."""
+        if not SKLEARN_AVAILABLE:
+            logger.info("scikit-learn not available. Skipping ensemble models.")
+            return
+            
         try:
             age_rf_path = os.path.join(self.model_path, "age_rf_model.pkl")
             gender_rf_path = os.path.join(self.model_path, "gender_rf_model.pkl")
@@ -225,6 +252,10 @@ class UltraAccurateAgeGenderEstimator:
     
     def _create_ensemble_models(self):
         """Create ensemble models using Random Forest."""
+        if not SKLEARN_AVAILABLE:
+            logger.info("scikit-learn not available. Skipping ensemble model creation.")
+            return
+            
         logger.info("Creating ensemble models...")
         
         # Create Random Forest models with optimized parameters
@@ -278,7 +309,7 @@ class UltraAccurateAgeGenderEstimator:
             features.append(edge_density)
             
             # Facial landmarks if available
-            if self.facial_feature_detector:
+            if DLIB_AVAILABLE and self.facial_feature_detector:
                 landmarks = self._extract_landmark_features(gray)
                 features.extend(landmarks)
             
@@ -294,12 +325,14 @@ class UltraAccurateAgeGenderEstimator:
     
     def _calculate_lbp(self, image: np.ndarray, radius: int = 3, n_points: int = 24) -> np.ndarray:
         """Calculate Local Binary Pattern for texture analysis."""
-        try:
-            from skimage import feature
-            return feature.local_binary_pattern(image, n_points, radius, method='uniform')
-        except:
-            # Simplified LBP implementation if skimage not available
-            return self._simple_lbp(image)
+        if SKIMAGE_AVAILABLE:
+            try:
+                return feature.local_binary_pattern(image, n_points, radius, method='uniform')
+            except Exception as e:
+                logger.warning(f"Error with skimage LBP: {e}. Using simplified LBP.")
+                
+        # Simplified LBP implementation if skimage not available
+        return self._simple_lbp(image)
     
     def _simple_lbp(self, image: np.ndarray) -> np.ndarray:
         """Simplified LBP implementation."""
@@ -324,6 +357,9 @@ class UltraAccurateAgeGenderEstimator:
     
     def _extract_landmark_features(self, gray_image: np.ndarray) -> List[float]:
         """Extract features from facial landmarks."""
+        if not DLIB_AVAILABLE or not self.facial_feature_detector:
+            return [0.0] * 50
+            
         try:
             rect = dlib.rectangle(0, 0, gray_image.shape[1], gray_image.shape[0])
             landmarks = self.facial_feature_detector(gray_image, rect)
@@ -403,7 +439,10 @@ class UltraAccurateAgeGenderEstimator:
                 facial_features = self._extract_facial_features(face_image)
                 
                 # Ensemble predictions if models are available and trained
-                if hasattr(self.age_rf_model, 'predict_proba') and len(facial_features) > 0:
+                if (SKLEARN_AVAILABLE and 
+                    hasattr(self.age_rf_model, 'predict_proba') and 
+                    len(facial_features) > 0 and 
+                    self.feature_scaler is not None):
                     try:
                         features_scaled = self.feature_scaler.transform([facial_features])
                         age_pred_rf = np.zeros(len(self.age_groups))
@@ -418,7 +457,8 @@ class UltraAccurateAgeGenderEstimator:
                         # Weighted ensemble (CNN: 70%, RF: 30%)
                         age_pred_final = 0.7 * age_pred_cnn + 0.3 * age_pred_rf
                         gender_pred_final = 0.7 * gender_pred_cnn + 0.3 * gender_pred_rf
-                    except:
+                    except Exception as e:
+                        logger.warning(f"Ensemble prediction failed: {e}. Using CNN only.")
                         # Fall back to CNN only
                         age_pred_final = age_pred_cnn
                         gender_pred_final = gender_pred_cnn
@@ -544,17 +584,19 @@ class UltraAccurateAgeGenderEstimator:
                 self.gender_model.save(gender_model_path)
                 logger.info(f"Ultra-accurate gender model saved to {gender_model_path}")
             
-            # Save ensemble models
-            if self.age_rf_model:
-                with open(os.path.join(save_path, "age_rf_model.pkl"), 'wb') as f:
-                    pickle.dump(self.age_rf_model, f)
-            
-            if self.gender_rf_model:
-                with open(os.path.join(save_path, "gender_rf_model.pkl"), 'wb') as f:
-                    pickle.dump(self.gender_rf_model, f)
-            
-            with open(os.path.join(save_path, "feature_scaler.pkl"), 'wb') as f:
-                pickle.dump(self.feature_scaler, f)
+            # Save ensemble models if available
+            if SKLEARN_AVAILABLE:
+                if self.age_rf_model:
+                    with open(os.path.join(save_path, "age_rf_model.pkl"), 'wb') as f:
+                        pickle.dump(self.age_rf_model, f)
+                
+                if self.gender_rf_model:
+                    with open(os.path.join(save_path, "gender_rf_model.pkl"), 'wb') as f:
+                        pickle.dump(self.gender_rf_model, f)
+                
+                if self.feature_scaler:
+                    with open(os.path.join(save_path, "feature_scaler.pkl"), 'wb') as f:
+                        pickle.dump(self.feature_scaler, f)
                 
         except Exception as e:
             logger.error(f"Error saving models: {e}")

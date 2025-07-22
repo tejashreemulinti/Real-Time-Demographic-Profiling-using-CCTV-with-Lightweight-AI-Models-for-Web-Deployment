@@ -43,24 +43,34 @@ A lightweight, real-time AI system for demographic analysis from CCTV/webcam fee
    pip install -r requirements.txt
    ```
 
-3. **Optimize for performance** (recommended):
+3. **Check system capabilities** (recommended):
    ```bash
-   python optimize_performance.py
+   python check_dependencies.py
    ```
 
-4. **Run the Flask application**
+4. **Optional: Install enhanced accuracy dependencies**:
    ```bash
-   python app.py
+   # For 93%+ accuracy (easy install)
+   pip install scikit-learn
+   
+   # For 95%+ accuracy (requires conda or build tools)
+   conda install -c conda-forge dlib scikit-image
    ```
+
+5. **Run the Flask application**
+     ```bash
+     python app.py
+     ```
    
    Or run the Streamlit interface:
    ```bash
    streamlit run run_streamlit.py
    ```
 
-5. **Open your browser**
-   - Flask: http://localhost:5000
-   - Streamlit: http://localhost:8501
+6. **Open your browser**
+   - **Professional UI**: http://localhost:5000 (new default)
+   - **Basic UI**: http://localhost:5000/basic
+   - **Streamlit**: http://localhost:8501
 
 ## 🎯 Usage
 

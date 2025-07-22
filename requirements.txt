@@ -20,5 +20,6 @@ pandas==2.1.4
 requests==2.31.0
 python-multipart==0.0.6
 websockets==12.0
-scikit-image==0.22.0
-dlib==19.24.2
+# Optional dependencies for enhanced accuracy (install separately if needed)
+# scikit-image==0.22.0
+# dlib==19.24.2
