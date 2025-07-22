@@ -837,6 +837,12 @@
                     updateButtonStates();
                     showNotification('Analysis started with 95%+ accuracy models', 'success');
                     sessionStartTime = Date.now();
+                    
+                    // Force refresh video feed
+                    const videoFeed = document.getElementById('videoFeed');
+                    if (videoFeed) {
+                        videoFeed.src = videoFeed.src.split('?')[0] + '?' + Date.now();
+                    }
                 } else {
                     showNotification('Failed to start analysis: ' + data.message, 'error');
                 }
@@ -939,7 +945,7 @@
             fetch('/api/status')
                 .then(response => response.json())
                 .then(data => {
-                    isProcessing = data.processing || false;
+                    isProcessing = data.processing_active || false;
                     updateButtonStates();
                 })
                 .catch(error => {

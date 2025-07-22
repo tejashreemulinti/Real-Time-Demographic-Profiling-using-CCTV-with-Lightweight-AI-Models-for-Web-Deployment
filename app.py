@@ -292,18 +292,45 @@ def capture_screenshot():
 @app.route('/video_feed')
 def video_feed():
     """Video streaming route."""
-    if processing_active:
-        return Response(
-            generate_video_stream(),
-            mimetype='multipart/x-mixed-replace; boundary=frame'
-        )
-    else:
-        # Return placeholder image when not processing
-        placeholder = np.zeros((480, 640, 3), dtype=np.uint8)
-        cv2.putText(placeholder, 'Video Processing Stopped', (150, 240),
-                   cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    try:
+        if processing_active and video_processor and video_processor.is_running:
+            return Response(
+                generate_video_stream(),
+                mimetype='multipart/x-mixed-replace; boundary=frame'
+            )
+        else:
+            # Return placeholder image when not processing
+            placeholder = np.zeros((480, 640, 3), dtype=np.uint8)
+            
+            if not processing_active:
+                text = 'Click Start Processing to Begin'
+                text_x = 120
+            elif not video_processor:
+                text = 'Video Processor Not Ready'
+                text_x = 140
+            else:
+                text = 'Video Processing Stopped'
+                text_x = 150
+                
+            cv2.putText(placeholder, text, (text_x, 240),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+            cv2.putText(placeholder, 'Ultra-Accurate Demographic Analysis', (100, 280),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (128, 128, 255), 2)
+            
+            ret, buffer = cv2.imencode('.jpg', placeholder)
+            return Response(
+                (b'--frame\r\n'
+                 b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n'),
+                mimetype='multipart/x-mixed-replace; boundary=frame'
+            )
+    except Exception as e:
+        logger.error(f"Error in video_feed: {e}")
+        # Return error placeholder
+        error_placeholder = np.zeros((480, 640, 3), dtype=np.uint8)
+        cv2.putText(error_placeholder, 'Video Feed Error', (200, 240),
+                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         
-        ret, buffer = cv2.imencode('.jpg', placeholder)
+        ret, buffer = cv2.imencode('.jpg', error_placeholder)
         return Response(
             (b'--frame\r\n'
              b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n'),
