@@ -9,6 +9,10 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 import pickle
 
+# Configure logging first
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Optional imports with fallbacks
 try:
     from sklearn.ensemble import RandomForestClassifier
@@ -31,10 +35,6 @@ try:
 except ImportError:
     SKIMAGE_AVAILABLE = False
     logger.warning("scikit-image not available. Using simplified LBP.")
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class UltraAccurateAgeGenderEstimator:
