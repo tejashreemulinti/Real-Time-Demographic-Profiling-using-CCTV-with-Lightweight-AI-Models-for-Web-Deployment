@@ -43,7 +43,12 @@ A lightweight, real-time AI system for demographic analysis from CCTV/webcam fee
    pip install -r requirements.txt
    ```
 
-3. **Run the Flask application**
+3. **Optimize for performance** (recommended):
+   ```bash
+   python optimize_performance.py
+   ```
+
+4. **Run the Flask application**
    ```bash
    python app.py
    ```
@@ -53,7 +58,7 @@ A lightweight, real-time AI system for demographic analysis from CCTV/webcam fee
    streamlit run run_streamlit.py
    ```
 
-4. **Open your browser**
+5. **Open your browser**
    - Flask: http://localhost:5000
    - Streamlit: http://localhost:8501
 
@@ -261,7 +266,74 @@ docker run -p 5000:5000 --device /dev/video0 demographic-profiling
 - Access control mechanisms
 - Audit logging capabilities
 
-## 🐛 Troubleshooting
+## 🐛 Troubleshooting & Optimization
+
+### Performance Issues
+
+**JSON Serialization Error: "Object of type deque is not JSON serializable"**
+```bash
+# This has been fixed in the latest version
+# Update your code or restart the application
+python app.py
+```
+
+**Low FPS or High Processing Time**
+```bash
+# Run the optimization script first
+python optimize_performance.py
+
+# Then start the application
+python app.py
+```
+
+**TensorFlow/Model Loading Issues**
+```bash
+# Set environment variables for better TensorFlow performance
+export TF_CPP_MIN_LOG_LEVEL=2
+export TF_ENABLE_ONEDNN_OPTS=1
+
+# Or run the optimization script
+python optimize_performance.py
+```
+
+### Speed Optimizations
+
+1. **Run Performance Optimization**:
+   ```bash
+   python optimize_performance.py
+   ```
+
+2. **Adjust Quality Mode** in `config.py`:
+   ```python
+   QUALITY_MODE = "speed"  # For maximum speed
+   QUALITY_MODE = "balanced"  # Default
+   QUALITY_MODE = "quality"  # For best accuracy
+   ```
+
+3. **Camera Optimization**:
+   - Use USB 3.0 camera
+   - Reduce resolution to 640x480
+   - Ensure good lighting
+   - Keep faces within 2 meters
+
+### Accuracy Improvements
+
+1. **Use Improved Models**:
+   - The system now uses EfficientNetB0-based models
+   - More detailed age groups (10 instead of 8)
+   - Better preprocessing with histogram equalization
+
+2. **Optimize Detection Settings**:
+   ```python
+   # In config.py
+   FACE_DETECTION_CONFIDENCE = 0.7  # Higher for better accuracy
+   MAX_FACES = 6  # More faces for crowded scenes
+   ```
+
+3. **Enable Batch Processing**:
+   - Automatic batch processing for multiple faces
+   - Concurrent age/gender estimation
+   - Model warm-up for faster inference
 
 ### Common Issues
 
@@ -271,21 +343,25 @@ docker run -p 5000:5000 --device /dev/video0 demographic-profiling
 python -c "import cv2; print([i for i in range(10) if cv2.VideoCapture(i).read()[0]])"
 ```
 
-**Low FPS performance**
-- Reduce camera resolution
-- Decrease max_faces parameter
-- Close other applications
-- Use USB 3.0 camera
+**Memory issues**
+```bash
+# Reduce batch size in config.py
+BATCH_SIZE = 2  # Instead of 4
+MAX_FACES = 2   # Instead of 4
+```
 
-**Model loading errors**
-- Check tensorflow installation
-- Verify model files in models/ directory
-- Ensure sufficient RAM available
+**Template not found errors**
+```bash
+# This has been fixed - error handlers now return JSON
+# No additional action needed
+```
 
-**WebSocket connection issues**
-- Check firewall settings
-- Verify port 5000 is available
-- Use localhost instead of IP address
+**Model accuracy issues**
+```bash
+# Use quality mode for better accuracy
+# Edit config.py and set:
+QUALITY_MODE = "quality"
+```
 
 ## 📄 License
 

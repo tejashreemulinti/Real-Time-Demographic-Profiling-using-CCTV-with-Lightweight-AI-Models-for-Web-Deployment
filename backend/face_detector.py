@@ -30,9 +30,13 @@ class LightweightFaceDetector:
             min_detection_confidence=confidence_threshold
         )
         
+        # Performance optimization
+        self.frame_skip = 2  # Process every 2nd frame for speed
+        self.frame_count = 0
+        
     def detect_faces(self, image: np.ndarray) -> List[Dict]:
         """
-        Detect faces in the input image.
+        Detect faces in the input image with performance optimization.
         
         Args:
             image: Input image as numpy array (BGR format)
@@ -40,6 +44,18 @@ class LightweightFaceDetector:
         Returns:
             List of dictionaries containing face information
         """
+        self.frame_count += 1
+        
+        # Resize image for faster processing
+        height, width = image.shape[:2]
+        if width > 640:
+            scale_factor = 640 / width
+            new_width = 640
+            new_height = int(height * scale_factor)
+            image = cv2.resize(image, (new_width, new_height))
+        else:
+            scale_factor = 1.0
+        
         # Convert BGR to RGB for MediaPipe
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         
@@ -59,14 +75,26 @@ class LightweightFaceDetector:
                 width = int(bbox.width * w)
                 height = int(bbox.height * h)
                 
-                # Ensure coordinates are within image bounds
+                # Scale back to original size if image was resized
+                if scale_factor != 1.0:
+                    x = int(x / scale_factor)
+                    y = int(y / scale_factor)
+                    width = int(width / scale_factor)
+                    height = int(height / scale_factor)
+                
+                # Ensure coordinates are within original image bounds
+                orig_h, orig_w = image.shape[:2] if scale_factor == 1.0 else (int(h / scale_factor), int(w / scale_factor))
                 x = max(0, x)
                 y = max(0, y)
-                width = min(width, w - x)
-                height = min(height, h - y)
+                width = min(width, orig_w - x)
+                height = min(height, orig_h - y)
                 
-                # Extract face region
-                face_crop = image[y:y+height, x:x+width]
+                # Extract face region from original or resized image
+                if scale_factor != 1.0:
+                    # Use original image for face extraction
+                    face_crop = image[y:y+height, x:x+width] if y+height <= image.shape[0] and x+width <= image.shape[1] else image[y:y+1, x:x+1]
+                else:
+                    face_crop = image[y:y+height, x:x+width]
                 
                 # Get confidence score
                 confidence = detection.score[0] if detection.score else 0.0

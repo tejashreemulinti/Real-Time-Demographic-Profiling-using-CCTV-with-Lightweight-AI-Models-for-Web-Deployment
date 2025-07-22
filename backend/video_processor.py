@@ -8,6 +8,7 @@ from collections import deque
 
 from .face_detector import LightweightFaceDetector
 from .age_gender_estimator import LightweightAgeGenderEstimator, SimpleDemographicPredictor
+from .improved_age_gender_estimator import ImprovedAgeGenderEstimator, FastDemographicPredictor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -47,14 +48,22 @@ class VideoProcessor:
         
         if use_lightweight_models:
             try:
-                self.demographic_estimator = LightweightAgeGenderEstimator()
-                logger.info("Using lightweight ML models for demographic estimation")
+                # Try improved estimator first
+                self.demographic_estimator = ImprovedAgeGenderEstimator()
+                logger.info("Using improved ML models for demographic estimation")
+                # Warm up models for faster first inference
+                self.demographic_estimator.warm_up_models()
             except Exception as e:
-                logger.warning(f"Failed to load ML models: {e}. Using simple predictor.")
-                self.demographic_estimator = SimpleDemographicPredictor()
+                logger.warning(f"Failed to load improved models: {e}. Trying fallback.")
+                try:
+                    self.demographic_estimator = FastDemographicPredictor()
+                    logger.info("Using fast demographic predictor")
+                except Exception as e2:
+                    logger.warning(f"Failed to load fast predictor: {e2}. Using simple predictor.")
+                    self.demographic_estimator = SimpleDemographicPredictor()
         else:
-            self.demographic_estimator = SimpleDemographicPredictor()
-            logger.info("Using simple demographic predictor")
+            self.demographic_estimator = FastDemographicPredictor()
+            logger.info("Using fast demographic predictor")
         
         # Performance monitoring
         self.fps_counter = 0
@@ -249,7 +258,10 @@ class VideoProcessor:
             
             # Calculate additional metrics
             runtime = time.time() - stats['session_start_time']
-            avg_processing_time = np.mean(stats['processing_times']) if stats['processing_times'] else 0
+            avg_processing_time = np.mean(list(stats['processing_times'])) if stats['processing_times'] else 0
+            
+            # Convert deque to list for JSON serialization
+            stats['processing_times'] = list(stats['processing_times'])
             
             stats.update({
                 'session_runtime': runtime,

@@ -13,16 +13,17 @@ from typing import Dict, Any
 
 from backend.video_processor import VideoProcessor
 from backend.anonymizer import PrivacyModeManager
+import config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize Flask app
+# Initialize Flask app with optimized settings
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'demographic_profiling_secret_key'
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode=config.SOCKETIO_ASYNC_MODE)
 
 # Global variables
 video_processor = None
@@ -62,9 +63,9 @@ def initialize_video_processor():
     
     try:
         video_processor = VideoProcessor(
-            source=0,  # Use webcam by default
-            use_lightweight_models=True,
-            max_faces=4
+            source=config.CAMERA_INDEX,
+            use_lightweight_models=config.USE_IMPROVED_MODELS,
+            max_faces=config.MAX_FACES
         )
         
         # Set callbacks for real-time updates
@@ -356,12 +357,12 @@ def on_set_privacy_mode(data):
 # Error Handlers
 @app.errorhandler(404)
 def not_found(error):
-    return render_template('404.html'), 404
+    return jsonify({'error': 'Not found'}), 404
 
 
 @app.errorhandler(500)
 def internal_error(error):
-    return render_template('500.html'), 500
+    return jsonify({'error': 'Internal server error'}), 500
 
 
 # Cleanup function
@@ -383,8 +384,8 @@ if __name__ == '__main__':
         # Run the Flask app with SocketIO
         socketio.run(
             app,
-            host='0.0.0.0',
-            port=5000,
+            host=config.FLASK_HOST,
+            port=config.FLASK_PORT,
             debug=False,
             allow_unsafe_werkzeug=True
         )
