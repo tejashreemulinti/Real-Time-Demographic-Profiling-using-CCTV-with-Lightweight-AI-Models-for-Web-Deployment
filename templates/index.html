@@ -299,7 +299,7 @@
                 }
                 
                 document.getElementById('currentFps').textContent = data.fps ? data.fps.toFixed(1) : '0.0';
-                document.getElementById('currentFaces').textContent = data.faces || 0;
+                document.getElementById('currentFaces').textContent = data.current_faces || data.faces || 0;
                 document.getElementById('processingTime').textContent = 
                     data.processing_time ? Math.round(data.processing_time * 1000) + 'ms' : '0ms';
             });
@@ -427,7 +427,7 @@
             
             // Update total faces
             document.getElementById('totalFaces').textContent = 
-                statistics.total_faces_detected || 0;
+                                        statistics.total_unique_faces || 0;
             
             // Update average FPS
             document.getElementById('avgFps').textContent = 

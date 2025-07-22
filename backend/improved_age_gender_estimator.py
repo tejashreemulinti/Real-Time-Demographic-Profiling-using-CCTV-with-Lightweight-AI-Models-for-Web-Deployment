@@ -31,10 +31,10 @@ class ImprovedAgeGenderEstimator:
         self.gender_model = None
         self.input_size = (224, 224)
         
-        # More detailed age groups for better accuracy
+        # More detailed age groups with 5-year increments for better accuracy
         self.age_groups = [
-            "0-5", "6-12", "13-17", "18-25", "26-35", 
-            "36-45", "46-55", "56-65", "66-75", "76+"
+            "0-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36-40", 
+            "41-45", "46-50", "51-55", "56-60", "61-65", "66-70", "71-75", "76-80", "81+"
         ]
         
         # Gender labels
@@ -283,22 +283,29 @@ class ImprovedAgeGenderEstimator:
         Convert age group to numeric estimate (middle of range).
         
         Args:
-            age_group: Age group string (e.g., "18-25")
+            age_group: Age group string (e.g., "21-25")
             
         Returns:
             Numeric age estimate
         """
         age_mapping = {
             "0-5": 2,
-            "6-12": 9,
-            "13-17": 15,
-            "18-25": 21,
-            "26-35": 30,
-            "36-45": 40,
-            "46-55": 50,
-            "56-65": 60,
-            "66-75": 70,
-            "76+": 80
+            "6-10": 8,
+            "11-15": 13,
+            "16-20": 18,
+            "21-25": 23,
+            "26-30": 28,
+            "31-35": 33,
+            "36-40": 38,
+            "41-45": 43,
+            "46-50": 48,
+            "51-55": 53,
+            "56-60": 58,
+            "61-65": 63,
+            "66-70": 68,
+            "71-75": 73,
+            "76-80": 78,
+            "81+": 85
         }
         
         return age_mapping.get(age_group, 30)  # Default to 30 if unknown
@@ -346,8 +353,8 @@ class FastDemographicPredictor:
     def __init__(self):
         """Initialize the fast predictor."""
         self.age_groups = [
-            "0-5", "6-12", "13-17", "18-25", "26-35", 
-            "36-45", "46-55", "56-65", "66-75", "76+"
+            "0-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36-40", 
+            "41-45", "46-50", "51-55", "56-60", "61-65", "66-70", "71-75", "76-80", "81+"
         ]
         self.gender_labels = ["Male", "Female"]
     

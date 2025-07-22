@@ -24,10 +24,10 @@ FRAME_SKIP = 1  # Process every nth frame (1 = no skip)
 IMAGE_RESIZE_FOR_DETECTION = True
 MAX_DETECTION_WIDTH = 640
 
-# Age Groups (more detailed for better accuracy)
+# Age Groups (5-year increments for highest accuracy)
 AGE_GROUPS = [
-    "0-5", "6-12", "13-17", "18-25", "26-35", 
-    "36-45", "46-55", "56-65", "66-75", "76+"
+    "0-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36-40", 
+    "41-45", "46-50", "51-55", "56-60", "61-65", "66-70", "71-75", "76-80", "81+"
 ]
 
 # Gender Labels
@@ -76,16 +76,16 @@ QUALITY_MODE = "balanced"  # "speed", "balanced", "quality"
 
 if QUALITY_MODE == "speed":
     FACE_DETECTION_CONFIDENCE = 0.5
-    FRAME_SKIP = 2
+    FRAME_SKIP = 3
     BATCH_SIZE = 8
     MAX_FACES = 2
 elif QUALITY_MODE == "quality":
-    FACE_DETECTION_CONFIDENCE = 0.8
+    FACE_DETECTION_CONFIDENCE = 0.7
     FRAME_SKIP = 1
     BATCH_SIZE = 2
     MAX_FACES = 6
 else:  # balanced
     FACE_DETECTION_CONFIDENCE = 0.6
-    FRAME_SKIP = 1
+    FRAME_SKIP = 2
     BATCH_SIZE = 4
     MAX_FACES = 4

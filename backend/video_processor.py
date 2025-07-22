@@ -9,6 +9,7 @@ from collections import deque
 from .face_detector import LightweightFaceDetector
 from .age_gender_estimator import LightweightAgeGenderEstimator, SimpleDemographicPredictor
 from .improved_age_gender_estimator import ImprovedAgeGenderEstimator, FastDemographicPredictor
+from .face_tracker import FaceTracker, OptimizedFaceDetector
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -40,10 +41,21 @@ class VideoProcessor:
         self.current_frame = None
         self.processed_frame = None
         
-        # Initialize AI components
-        self.face_detector = LightweightFaceDetector(
-            confidence_threshold=0.7, 
+        # Initialize AI components with optimization
+        base_detector = LightweightFaceDetector(
+            confidence_threshold=0.6,  # Slightly lower for better detection
             max_faces=max_faces
+        )
+        self.face_detector = OptimizedFaceDetector(
+            base_detector=base_detector,
+            frame_skip=2,  # Skip every 2nd frame for speed
+            cache_duration=3
+        )
+        
+        # Initialize face tracker for consistent counting
+        self.face_tracker = FaceTracker(
+            max_face_distance=80.0,  # Pixel distance for same person
+            max_inactive_frames=30   # 1 second at 30 FPS
         )
         
         if use_lightweight_models:
@@ -74,13 +86,15 @@ class VideoProcessor:
         self.frame_queue = deque(maxlen=5)
         self.result_queue = deque(maxlen=5)
         
-        # Statistics tracking
+        # Statistics tracking with new age groups
         self.statistics = {
-            'total_faces_detected': 0,
+            'total_unique_faces': 0,  # Count unique faces only
+            'current_faces': 0,       # Currently visible faces
             'faces_by_gender': {'Male': 0, 'Female': 0, 'Unknown': 0},
             'faces_by_age': {
-                '0-10': 0, '11-20': 0, '21-30': 0, '31-40': 0,
-                '41-50': 0, '51-60': 0, '61-70': 0, '71+': 0, 'Unknown': 0
+                '0-5': 0, '6-10': 0, '11-15': 0, '16-20': 0, '21-25': 0, '26-30': 0,
+                '31-35': 0, '36-40': 0, '41-45': 0, '46-50': 0, '51-55': 0, '56-60': 0,
+                '61-65': 0, '66-70': 0, '71-75': 0, '76-80': 0, '81+': 0, 'Unknown': 0
             },
             'processing_times': deque(maxlen=100),
             'session_start_time': time.time()
@@ -138,28 +152,42 @@ class VideoProcessor:
         """
         start_time = time.time()
         
-        # Detect faces
-        faces = self.face_detector.detect_faces(frame)
+        # Detect faces with optimization
+        detected_faces = self.face_detector.detect_faces(frame)
         
-        # Process demographics for each face
+        # Update face tracker
+        tracked_faces = self.face_tracker.update_tracks(detected_faces)
+        
+        # Process demographics for tracked faces
         face_demographics = []
-        for i, face in enumerate(faces):
+        for face in tracked_faces:
             if face['face_crop'].size > 0:
-                # Estimate demographics
-                demographics = self.demographic_estimator.estimate_age_gender(face['face_crop'])
+                # Only estimate demographics for new or unprocessed faces
+                if face.get('is_new', True):
+                    demographics = self.demographic_estimator.estimate_age_gender(face['face_crop'])
+                    
+                    # Update face tracker with demographics
+                    is_new_unique = self.face_tracker.update_face_demographics(face['id'], demographics)
+                    
+                    # Only update statistics for truly new unique faces
+                    if is_new_unique:
+                        self._update_statistics(demographics)
+                else:
+                    # Use cached demographics for existing faces
+                    demographics = self.face_tracker.face_demographics.get(face['id'], {
+                        'age_group': 'Unknown', 'age_confidence': 0.0,
+                        'gender': 'Unknown', 'gender_confidence': 0.0
+                    })
                 
                 # Combine face detection and demographic data
                 face_data = {
-                    'id': i,
+                    'id': face['id'],
                     'bbox': face['bbox'],
                     'confidence': face['confidence'],
                     'demographics': demographics,
                     'center': face['center']
                 }
                 face_demographics.append(face_data)
-                
-                # Update statistics
-                self._update_statistics(demographics)
         
         # Draw annotations on frame
         annotated_frame = self._draw_annotations(frame.copy(), face_demographics)
@@ -171,12 +199,16 @@ class VideoProcessor:
         # Update FPS
         self._update_fps()
         
+        # Update current face count and sync with tracker
+        self._sync_statistics_with_tracker()
+        
         result = {
             'frame': annotated_frame,
             'faces': face_demographics,
             'fps': self.current_fps,
             'processing_time': processing_time,
             'face_count': len(face_demographics),
+            'unique_faces': self.face_tracker.get_unique_face_count(),
             'statistics': self.get_statistics()
         }
         
@@ -227,10 +259,8 @@ class VideoProcessor:
         return frame
     
     def _update_statistics(self, demographics: Dict):
-        """Update running statistics with new demographic data."""
+        """Update running statistics with new demographic data (only for new unique faces)."""
         with self.lock:
-            self.statistics['total_faces_detected'] += 1
-            
             # Update gender statistics
             gender = demographics.get('gender', 'Unknown')
             if gender in self.statistics['faces_by_gender']:
@@ -240,6 +270,27 @@ class VideoProcessor:
             age_group = demographics.get('age_group', 'Unknown')
             if age_group in self.statistics['faces_by_age']:
                 self.statistics['faces_by_age'][age_group] += 1
+    
+    def _sync_statistics_with_tracker(self):
+        """Sync statistics with face tracker data."""
+        with self.lock:
+            # Update counts based on face tracker
+            self.statistics['total_unique_faces'] = self.face_tracker.get_unique_face_count()
+            self.statistics['current_faces'] = self.face_tracker.get_active_face_count()
+            
+            # Get complete demographics summary from tracker
+            tracker_summary = self.face_tracker.get_demographics_summary()
+            
+            # Update statistics with accurate counts from tracker
+            self.statistics['faces_by_gender'] = {
+                'Male': tracker_summary['faces_by_gender'].get('Male', 0),
+                'Female': tracker_summary['faces_by_gender'].get('Female', 0),
+                'Unknown': tracker_summary['faces_by_gender'].get('Unknown', 0)
+            }
+            
+            # Update age statistics with all possible age groups
+            for age_group in self.statistics['faces_by_age'].keys():
+                self.statistics['faces_by_age'][age_group] = tracker_summary['faces_by_age'].get(age_group, 0)
     
     def _update_fps(self):
         """Update FPS calculation."""
@@ -272,18 +323,26 @@ class VideoProcessor:
             return stats
     
     def reset_statistics(self):
-        """Reset all statistics."""
+        """Reset all statistics and face tracker."""
         with self.lock:
+            # Reset face tracker
+            self.face_tracker.reset()
+            
+            # Reset statistics with new age groups
             self.statistics = {
-                'total_faces_detected': 0,
+                'total_unique_faces': 0,
+                'current_faces': 0,
                 'faces_by_gender': {'Male': 0, 'Female': 0, 'Unknown': 0},
                 'faces_by_age': {
-                    '0-10': 0, '11-20': 0, '21-30': 0, '31-40': 0,
-                    '41-50': 0, '51-60': 0, '61-70': 0, '71+': 0, 'Unknown': 0
+                    '0-5': 0, '6-10': 0, '11-15': 0, '16-20': 0, '21-25': 0, '26-30': 0,
+                    '31-35': 0, '36-40': 0, '41-45': 0, '46-50': 0, '51-55': 0, '56-60': 0,
+                    '61-65': 0, '66-70': 0, '71-75': 0, '76-80': 0, '81+': 0, 'Unknown': 0
                 },
                 'processing_times': deque(maxlen=100),
                 'session_start_time': time.time()
             }
+            
+        logger.info("Statistics and face tracker reset")
     
     def start_processing(self, threaded=True):
         """
