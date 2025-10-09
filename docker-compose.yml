@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  demographic-profiling:
+    build: .
+    container_name: demographic-profiling-app
+    ports:
+      - "5000:5000"
+    devices:
+      - /dev/video0:/dev/video0  # For webcam access
+    volumes:
+      - ./models:/app/models
+      - ./visualizations:/app/visualizations
+      - ./exports:/app/exports
+    environment:
+      - PYTHONPATH=/app
+      - FLASK_ENV=production
+      - FLASK_APP=app.py
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - demographic-network
+
+  streamlit-app:
+    build: .
+    container_name: demographic-profiling-streamlit
+    ports:
+      - "8501:8501"
+    devices:
+      - /dev/video0:/dev/video0
+    volumes:
+      - ./models:/app/models
+      - ./visualizations:/app/visualizations
+      - ./exports:/app/exports
+    environment:
+      - PYTHONPATH=/app
+    command: ["streamlit", "run", "run_streamlit.py", "--server.address", "0.0.0.0"]
+    restart: unless-stopped
+    depends_on:
+      - demographic-profiling
+    networks:
+      - demographic-network
+
+networks:
+  demographic-network:
+    driver: bridge
+
+volumes:
+  models-data:
+  visualizations-data:
+  exports-data:

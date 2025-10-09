@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Demographic Profiling System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        
+        .main-container {
+            padding: 20px;
+        }
+        
+        .video-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .video-stream {
+            width: 100%;
+            max-width: 640px;
+            border-radius: 8px;
+            border: 2px solid #dee2e6;
+        }
+        
+        .controls-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .stats-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 0;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin: 0;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-active {
+            background-color: #28a745;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-inactive {
+            background-color: #dc3545;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 20px;
+        }
+        
+        .privacy-mode-selector {
+            margin-top: 15px;
+        }
+        
+        .performance-metrics {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        
+        .metric-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="fas fa-video"></i>
+                Real-Time Demographic Profiling System
+            </span>
+            <span class="navbar-text">
+                <span class="status-indicator" id="connectionStatus"></span>
+                <span id="connectionText">Connecting...</span>
+            </span>
+        </div>
+    </nav>
+
+    <div class="container-fluid main-container">
+        <div class="row">
+            <!-- Video Feed Column -->
+            <div class="col-lg-8">
+                <div class="video-container">
+                    <h4><i class="fas fa-camera"></i> Live Video Feed</h4>
+                    <div class="text-center">
+                        <img id="videoStream" class="video-stream" src="/video_feed" alt="Video Stream">
+                    </div>
+                    
+                    <div class="performance-metrics">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="metric-item">
+                                    <span>FPS:</span>
+                                    <span id="currentFps" class="fw-bold">0.0</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="metric-item">
+                                    <span>Faces:</span>
+                                    <span id="currentFaces" class="fw-bold">0</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="metric-item">
+                                    <span>Processing:</span>
+                                    <span id="processingTime" class="fw-bold">0ms</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="metric-item">
+                                    <span>Runtime:</span>
+                                    <span id="runtime" class="fw-bold">0s</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls and Stats Column -->
+            <div class="col-lg-4">
+                <!-- Control Panel -->
+                <div class="controls-panel">
+                    <h5><i class="fas fa-cogs"></i> Controls</h5>
+                    
+                    <div class="mb-3">
+                        <button id="startBtn" class="btn btn-success btn-lg w-100 mb-2">
+                            <i class="fas fa-play"></i> Start Processing
+                        </button>
+                        <button id="stopBtn" class="btn btn-danger btn-lg w-100 mb-2" disabled>
+                            <i class="fas fa-stop"></i> Stop Processing
+                        </button>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button id="screenshotBtn" class="btn btn-info w-100 mb-2" disabled>
+                            <i class="fas fa-camera"></i> Take Screenshot
+                        </button>
+                        <button id="resetStatsBtn" class="btn btn-warning w-100">
+                            <i class="fas fa-refresh"></i> Reset Statistics
+                        </button>
+                    </div>
+                    
+                    <div class="privacy-mode-selector">
+                        <label for="privacyMode" class="form-label">
+                            <i class="fas fa-shield-alt"></i> Privacy Mode
+                        </label>
+                        <select id="privacyMode" class="form-select">
+                            <option value="none">No Privacy</option>
+                            <option value="low">Low Privacy</option>
+                            <option value="medium">Medium Privacy</option>
+                            <option value="high">High Privacy</option>
+                            <option value="maximum">Maximum Privacy</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Statistics Panel -->
+                <div class="stats-panel">
+                    <h5><i class="fas fa-chart-bar"></i> Live Statistics</h5>
+                    
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="stat-card">
+                                <p class="stat-value" id="totalFaces">0</p>
+                                <p class="stat-label">Total Faces</p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-card">
+                                <p class="stat-value" id="avgFps">0.0</p>
+                                <p class="stat-label">Avg FPS</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gender Distribution Chart -->
+                    <div class="chart-container">
+                        <canvas id="genderChart"></canvas>
+                    </div>
+
+                    <!-- Age Distribution Chart -->
+                    <div class="chart-container">
+                        <canvas id="ageChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div class="modal fade" id="loadingModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3" id="loadingText">Initializing system...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Global variables
+        let socket;
+        let genderChart;
+        let ageChart;
+        let isProcessing = false;
+        let statistics = {};
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSocketIO();
+            initializeCharts();
+            initializeEventListeners();
+            updateStatus();
+        });
+
+        function initializeSocketIO() {
+            socket = io();
+            
+            socket.on('connect', function() {
+                updateConnectionStatus(true);
+                console.log('Connected to server');
+            });
+            
+            socket.on('disconnect', function() {
+                updateConnectionStatus(false);
+                console.log('Disconnected from server');
+            });
+            
+            socket.on('frame_update', function(data) {
+                if (data.frame) {
+                    document.getElementById('videoStream').src = data.frame;
+                }
+                
+                document.getElementById('currentFps').textContent = data.fps ? data.fps.toFixed(1) : '0.0';
+                document.getElementById('currentFaces').textContent = data.current_faces || data.faces || 0;
+                document.getElementById('processingTime').textContent = 
+                    data.processing_time ? Math.round(data.processing_time * 1000) + 'ms' : '0ms';
+            });
+            
+            socket.on('statistics_update', function(data) {
+                statistics = data;
+                updateStatistics();
+            });
+            
+            socket.on('status_update', function(data) {
+                isProcessing = data.processing_active;
+                updateButtonStates();
+                
+                if (data.privacy_mode) {
+                    document.getElementById('privacyMode').value = data.privacy_mode;
+                }
+            });
+            
+            socket.on('privacy_mode_changed', function(data) {
+                document.getElementById('privacyMode').value = data.mode;
+                showNotification('Privacy mode changed to: ' + data.mode, 'info');
+            });
+            
+            socket.on('error', function(data) {
+                showNotification('Error: ' + data.message, 'danger');
+            });
+        }
+
+        function initializeCharts() {
+            // Gender distribution chart
+            const genderCtx = document.getElementById('genderChart').getContext('2d');
+            genderChart = new Chart(genderCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Male', 'Female', 'Unknown'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: ['#36A2EB', '#FF6384', '#FFCE56'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Gender Distribution'
+                        },
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+
+            // Age distribution chart
+            const ageCtx = document.getElementById('ageChart').getContext('2d');
+            ageChart = new Chart(ageCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['0-10', '11-20', '21-30', '31-40', '41-50', '51-60', '61-70', '71+'],
+                    datasets: [{
+                        label: 'Count',
+                        data: [0, 0, 0, 0, 0, 0, 0, 0],
+                        backgroundColor: '#667eea',
+                        borderColor: '#764ba2',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Age Distribution'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function initializeEventListeners() {
+            document.getElementById('startBtn').addEventListener('click', startProcessing);
+            document.getElementById('stopBtn').addEventListener('click', stopProcessing);
+            document.getElementById('screenshotBtn').addEventListener('click', takeScreenshot);
+            document.getElementById('resetStatsBtn').addEventListener('click', resetStatistics);
+            document.getElementById('privacyMode').addEventListener('change', changePrivacyMode);
+        }
+
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connectionStatus');
+            const text = document.getElementById('connectionText');
+            
+            if (connected) {
+                indicator.className = 'status-indicator status-active';
+                text.textContent = 'Connected';
+            } else {
+                indicator.className = 'status-indicator status-inactive';
+                text.textContent = 'Disconnected';
+            }
+        }
+
+        function updateButtonStates() {
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            const screenshotBtn = document.getElementById('screenshotBtn');
+            
+            startBtn.disabled = isProcessing;
+            stopBtn.disabled = !isProcessing;
+            screenshotBtn.disabled = !isProcessing;
+        }
+
+        function updateStatistics() {
+            if (!statistics) return;
+            
+            // Update total faces
+            document.getElementById('totalFaces').textContent = 
+                                        statistics.total_unique_faces || 0;
+            
+            // Update average FPS
+            document.getElementById('avgFps').textContent = 
+                statistics.current_fps ? statistics.current_fps.toFixed(1) : '0.0';
+            
+            // Update runtime
+            const runtime = statistics.session_runtime || 0;
+            const hours = Math.floor(runtime / 3600);
+            const minutes = Math.floor((runtime % 3600) / 60);
+            const seconds = Math.floor(runtime % 60);
+            document.getElementById('runtime').textContent = 
+                `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Update charts
+            if (statistics.faces_by_gender) {
+                const genderData = [
+                    statistics.faces_by_gender.Male || 0,
+                    statistics.faces_by_gender.Female || 0,
+                    statistics.faces_by_gender.Unknown || 0
+                ];
+                genderChart.data.datasets[0].data = genderData;
+                genderChart.update();
+            }
+            
+            if (statistics.faces_by_age) {
+                const ageData = [
+                    statistics.faces_by_age['0-10'] || 0,
+                    statistics.faces_by_age['11-20'] || 0,
+                    statistics.faces_by_age['21-30'] || 0,
+                    statistics.faces_by_age['31-40'] || 0,
+                    statistics.faces_by_age['41-50'] || 0,
+                    statistics.faces_by_age['51-60'] || 0,
+                    statistics.faces_by_age['61-70'] || 0,
+                    statistics.faces_by_age['71+'] || 0
+                ];
+                ageChart.data.datasets[0].data = ageData;
+                ageChart.update();
+            }
+        }
+
+        function startProcessing() {
+            showLoading('Starting video processing...');
+            
+            fetch('/api/start_processing', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
+                if (data.status === 'success') {
+                    isProcessing = true;
+                    updateButtonStates();
+                    showNotification('Video processing started successfully!', 'success');
+                } else {
+                    showNotification('Failed to start processing: ' + (data.error || data.message), 'danger');
+                }
+            })
+            .catch(error => {
+                hideLoading();
+                showNotification('Error starting processing: ' + error.message, 'danger');
+            });
+        }
+
+        function stopProcessing() {
+            fetch('/api/stop_processing', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    isProcessing = false;
+                    updateButtonStates();
+                    showNotification('Video processing stopped', 'info');
+                } else {
+                    showNotification('Failed to stop processing: ' + data.error, 'danger');
+                }
+            })
+            .catch(error => {
+                showNotification('Error stopping processing: ' + error.message, 'danger');
+            });
+        }
+
+        function takeScreenshot() {
+            fetch('/api/screenshot', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification('Screenshot saved: ' + data.filename, 'success');
+                } else {
+                    showNotification('Failed to take screenshot: ' + data.error, 'danger');
+                }
+            })
+            .catch(error => {
+                showNotification('Error taking screenshot: ' + error.message, 'danger');
+            });
+        }
+
+        function resetStatistics() {
+            if (confirm('Are you sure you want to reset all statistics?')) {
+                fetch('/api/reset_statistics', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        statistics = {};
+                        updateStatistics();
+                        showNotification('Statistics reset successfully', 'success');
+                    } else {
+                        showNotification('Failed to reset statistics: ' + data.error, 'danger');
+                    }
+                })
+                .catch(error => {
+                    showNotification('Error resetting statistics: ' + error.message, 'danger');
+                });
+            }
+        }
+
+        function changePrivacyMode() {
+            const mode = document.getElementById('privacyMode').value;
+            
+            socket.emit('set_privacy_mode', { mode: mode });
+        }
+
+        function updateStatus() {
+            fetch('/api/status')
+            .then(response => response.json())
+            .then(data => {
+                isProcessing = data.processing_active;
+                updateButtonStates();
+                
+                if (data.privacy_mode) {
+                    document.getElementById('privacyMode').value = data.privacy_mode;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching status:', error);
+            });
+        }
+
+        function showLoading(text) {
+            document.getElementById('loadingText').textContent = text;
+            new bootstrap.Modal(document.getElementById('loadingModal')).show();
+        }
+
+        function hideLoading() {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('loadingModal'));
+            if (modal) {
+                modal.hide();
+            }
+        }
+
+        function showNotification(message, type) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+            notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            notification.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 5000);
+        }
+
+        // Refresh video stream every 30 seconds to prevent stale connections
+        setInterval(() => {
+            if (isProcessing) {
+                const videoStream = document.getElementById('videoStream');
+                const src = videoStream.src;
+                videoStream.src = '';
+                videoStream.src = src;
+            }
+        }, 30000);
+    </script>
+</body>
+</html>
